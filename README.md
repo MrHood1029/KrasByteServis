@@ -1,5 +1,5 @@
 # KrasByteServis
-Этот проект нацелен на внедрение цифровых технологий в компанию
+Этот проект нацелен на внедрение цифровых технологий в компанию КрасБытСервис. Я как начинающий IT специалист предложил этой компании разработать сайт. На что они дали добдро. 
 <img width="1920" height="1080" alt="Снимок экрана (2)" src="https://github.com/user-attachments/assets/c1061fb7-62a2-46d4-89bd-a238b213adeb" />
 <img width="1920" height="1080" alt="Снимок экрана (3)" src="https://github.com/user-attachments/assets/265852ee-197a-4c0b-9837-66ab6e9dbc38" />
 <img width="1920" height="1080" alt="Снимок экрана (4)" src="https://github.com/user-attachments/assets/b83316cd-ab2e-4d50-ad9d-5e5b12de6af9" />
