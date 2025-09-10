@@ -1,0 +1,514 @@
+{% extends "base.html" %}
+
+{% block title %}Управление заказами{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Управление заказами</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addOrderModal">
+            <i class="bi bi-plus-circle"></i> Создать заказ
+        </button>
+    </div>
+</div>
+
+<!-- Фильтры и поиск -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title">Фильтры заказов</h5>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-3 mb-3">
+                <label class="form-label">Статус</label>
+                <select class="form-select" id="statusFilter" onchange="filterOrders()">
+                    <option value="all">Все статусы</option>
+                    {% for status in statuses %}
+                    <option value="{{ status.id }}">{{ status.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label class="form-label">Мастер</label>
+                <select class="form-select" id="masterFilter" onchange="filterOrders()">
+                    <option value="all">Все мастера</option>
+                    {% for employee in employees %}
+                    <option value="{{ employee.id }}">{{ employee.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 mb-3">
+                <label class="form-label">Дата с</label>
+                <input type="date" class="form-control" id="dateFromFilter" onchange="filterOrders()">
+            </div>
+            <div class="col-md-3 mb-3">
+                <label class="form-label">Дата по</label>
+                <input type="date" class="form-control" id="dateToFilter" onchange="filterOrders()">
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-8">
+                <input type="text" class="form-control" id="searchInput" placeholder="Поиск по клиенту, модели или описанию..." oninput="filterOrders()">
+            </div>
+            <div class="col-md-4">
+                <div class="btn-group w-100">
+                    <button type="button" class="btn btn-outline-secondary" onclick="resetFilters()">
+                        <i class="bi bi-arrow-clockwise"></i> Сбросить
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" onclick="exportOrders()">
+                        <i class="bi bi-download"></i> Экспорт
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Статистика заказов -->
+<div class="row mb-4" id="ordersStats">
+    <div class="col-md-2">
+        <div class="card text-white bg-primary">
+            <div class="card-body text-center py-2">
+                <h6 class="card-title mb-1">Всего</h6>
+                <h4 class="mb-0">{{ orders|length }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-white bg-warning">
+            <div class="card-body text-center py-2">
+                <h6 class="card-title mb-1">Новые</h6>
+                <h4 class="mb-0">{{ orders|selectattr('status_id', 'equalto', 1)|list|length }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-white bg-info">
+            <div class="card-body text-center py-2">
+                <h6 class="card-title mb-1">В работе</h6>
+                <h4 class="mb-0">{{ orders|selectattr('status_id', 'equalto', 3)|list|length }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-white bg-success">
+            <div class="card-body text-center py-2">
+                <h6 class="card-title mb-1">Завершены</h6>
+                <h4 class="mb-0">{{ orders|selectattr('status_id', 'equalto', 4)|list|length }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-white bg-danger">
+            <div class="card-body text-center py-2">
+                <h6 class="card-title mb-1">Отменены</h6>
+                <h4 class="mb-0">{{ orders|selectattr('status_id', 'equalto', 5)|list|length }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-white bg-secondary">
+            <div class="card-body text-center py-2">
+                <h6 class="card-title mb-1">Прибыль</h6>
+                <h4 class="mb-0">{{ "%.0f"|format(calculate_total_profit()) }} ₽</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Таблица заказов -->
+<div class="table-responsive">
+    <table class="table table-striped table-hover" id="ordersTable">
+        <thead class="table-dark">
+            <tr>
+                <th>№</th>
+                <th>Клиент</th>
+                <th>Модель</th>
+                <th>Статус</th>
+                <th>Мастер</th>
+                <th>Дата создания</th>
+                <th>Стоимость</th>
+                <th>Прибыль</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr class="order-row"
+                data-status="{{ order.status_id }}"
+                data-master="{{ order.employee_id if order.employee_id else '' }}"
+                data-date="{{ order.created_at.strftime('%Y-%m-%d') }}"
+                data-client="{{ order.client.name.lower() }}"
+                data-model="{{ order.washing_machine_model.lower() }}"
+                data-description="{{ order.description.lower() if order.description else '' }}">
+                <td><strong>#{{ order.id }}</strong></td>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="avatar-sm bg-light rounded">
+                                <div class="avatar-title bg-soft-primary text-primary rounded-circle">
+                                    {{ order.client.name[0]|upper }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-2">
+                            <strong>{{ order.client.name }}</strong>
+                            <br>
+                            <small class="text-muted">{{ order.client.phone }}</small>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <strong>{{ order.washing_machine_model }}</strong>
+                    {% if order.description %}
+                    <br>
+                    <small class="text-muted" title="{{ order.description }}">
+                        {{ order.description[:50] }}{% if order.description|length > 50 %}...{% endif %}
+                    </small>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="badge bg-{{ get_status_badge_class(order.status_id) }}">
+                        {{ order.status.name }}
+                    </span>
+                </td>
+                <td>
+                    {% if order.employee %}
+                    <span class="badge bg-light text-dark">
+                        {{ order.employee.name }}
+                    </span>
+                    {% else %}
+                    <span class="text-muted">Не назначен</span>
+                    {% endif %}
+                </td>
+                <td>{{ order.created_at.strftime('%d.%m.%Y') }}</td>
+                <td>
+                    <strong>{{ "%.2f"|format(order.sale_price or order.repair_costs or 0) }} ₽</strong>
+                </td>
+                <td>
+                    {% set profit = (order.sale_price or 0) - (order.repair_costs or 0) - (order.purchase_price or 0) %}
+                    <span class="badge bg-{% if profit > 0 %}success{% else %}danger{% endif %}">
+                        {{ "%.2f"|format(profit) }} ₽
+                    </span>
+                </td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary"
+                                data-bs-toggle="modal"
+                                data-bs-target="#viewOrderModal"
+                                onclick="viewOrder({{ order.id }})"
+                                title="Просмотр">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-outline-warning"
+                                data-bs-toggle="modal"
+                                data-bs-target="#editOrderModal"
+                                onclick="fillEditForm({{ order.id }})"
+                                title="Редактировать">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-outline-danger"
+                                onclick="confirmDelete({{ order.id }})"
+                                title="Удалить">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Пагинация -->
+{% if orders|length > 10 %}
+<nav aria-label="Page navigation">
+    <ul class="pagination justify-content-center">
+        <li class="page-item disabled">
+            <a class="page-link" href="#">Предыдущая</a>
+        </li>
+        <li class="page-item active"><a class="page-link" href="#">1</a></li>
+        <li class="page-item"><a class="page-link" href="#">2</a></li>
+        <li class="page-item"><a class="page-link" href="#">3</a></li>
+        <li class="page-item">
+            <a class="page-link" href="#">Следующая</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
+
+<!-- Модальное окно создания заказа -->
+<div class="modal fade" id="addOrderModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Создать новый заказ</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_order') }}">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Клиент *</label>
+                            <select class="form-select" name="client_id" required>
+                                <option value="">Выберите клиента</option>
+                                {% for client in clients %}
+                                <option value="{{ client.id }}">{{ client.name }} - {{ client.phone }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Модель стиральной машины *</label>
+                            <input type="text" class="form-control" name="model" required>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Статус *</label>
+                            <select class="form-select" name="status_id" required>
+                                {% for status in statuses %}
+                                <option value="{{ status.id }}">{{ status.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Мастер</label>
+                            <select class="form-select" name="employee_id">
+                                <option value="">Не назначен</option>
+                                {% for employee in employees %}
+                                <option value="{{ employee.id }}">{{ employee.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Тип заказа *</label>
+                            <select class="form-select" name="order_type" id="orderType" onchange="toggleOrderFields()">
+                                <option value="repair">Ремонт</option>
+                                <option value="buy">Скупка</option>
+                                <option value="sell">Продажа</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Описание проблемы/состояния</label>
+                        <textarea class="form-control" name="description" rows="3"></textarea>
+                    </div>
+
+                    <div class="row" id="priceFields">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Цена выкупа (₽)</label>
+                            <input type="number" step="0.01" class="form-control" name="purchase_price">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Затраты на ремонт (₽)</label>
+                            <input type="number" step="0.01" class="form-control" name="repair_costs">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Цена продажи (₽)</label>
+                            <input type="number" step="0.01" class="form-control" name="sale_price">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Создать заказ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно просмотра заказа -->
+<div class="modal fade" id="viewOrderModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Информация о заказе #<span id="viewOrderId"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="orderDetails">
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Загрузка...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Подключение Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+
+<style>
+.order-row:hover {
+    background-color: #f8f9fa;
+    cursor: pointer;
+}
+.table th {
+    background-color: #0d6efd;
+    color: white;
+}
+.avatar-sm {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+</style>
+
+<script>
+// Функция для переключения полей в зависимости от типа заказа
+function toggleOrderFields() {
+    const orderType = document.getElementById('orderType').value;
+    const priceFields = document.getElementById('priceFields');
+
+    // Можно добавить логику скрытия/показа определенных полей
+    console.log('Тип заказа изменен на:', orderType);
+}
+
+// Заполнение формы редактирования
+function fillEditForm(orderId) {
+    // Загрузка данных заказа и заполнение формы
+    alert('Функция редактирования будет реализована в следующей версии');
+}
+
+// Подтверждение удаления
+function confirmDelete(orderId) {
+    if (confirm('Вы уверены, что хотите удалить этот заказ?')) {
+        fetch(`/delete_order/${orderId}`, {
+            method: 'DELETE',
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Ошибка при удалении заказа: ' + data.error);
+            }
+        });
+    }
+}
+
+// Просмотр информации о заказе
+function viewOrder(orderId) {
+    fetch(`/api/order_details/${orderId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('viewOrderId').textContent = data.order.id;
+                document.getElementById('orderDetails').innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Информация о клиенте</h6>
+                            <p><strong>ФИО:</strong> ${data.order.client_name}</p>
+                            <p><strong>Телефон:</strong> ${data.order.client_phone}</p>
+                            <p><strong>Email:</strong> ${data.order.client_email || 'Не указан'}</p>
+                            <p><strong>Адрес:</strong> ${data.order.client_address || 'Не указан'}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Информация о заказе</h6>
+                            <p><strong>Модель:</strong> ${data.order.model}</p>
+                            <p><strong>Статус:</strong> <span class="badge bg-${data.order.status_class}">${data.order.status}</span></p>
+                            <p><strong>Мастер:</strong> ${data.order.master || 'Не назначен'}</p>
+                            <p><strong>Дата создания:</strong> ${data.order.created_date}</p>
+                        </div>
+                    </div>
+
+                    ${data.order.description ? `
+                    <hr>
+                    <h6>Описание</h6>
+                    <p>${data.order.description}</p>
+                    ` : ''}
+
+                    <hr>
+                    <h6>Финансовая информация</h6>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <p><strong>Цена выкупа:</strong> ${data.order.purchase_price || '0'} ₽</p>
+                        </div>
+                        <div class="col-md-4">
+                            <p><strong>Затраты на ремонт:</strong> ${data.order.repair_costs || '0'} ₽</p>
+                        </div>
+                        <div class="col-md-4">
+                            <p><strong>Цена продажи:</strong> ${data.order.sale_price || '0'} ₽</p>
+                        </div>
+                    </div>
+                    <div class="alert alert-${data.order.profit >= 0 ? 'success' : 'danger'}">
+                        <strong>Прибыль:</strong> ${data.order.profit} ₽
+                    </div>
+
+                    <div class="text-end">
+                        <button class="btn btn-outline-primary btn-sm" onclick="changeStatus(${data.order.id})">
+                            <i class="bi bi-arrow-repeat"></i> Изменить статус
+                        </button>
+                    </div>
+                `;
+            } else {
+                document.getElementById('orderDetails').innerHTML = `
+                    <div class="alert alert-danger">Ошибка загрузки данных заказа</div>
+                `;
+            }
+        });
+}
+
+// Фильтрация заказов
+function filterOrders() {
+    const statusFilter = document.getElementById('statusFilter').value;
+    const masterFilter = document.getElementById('masterFilter').value;
+    const dateFrom = document.getElementById('dateFromFilter').value;
+    const dateTo = document.getElementById('dateToFilter').value;
+    const searchText = document.getElementById('searchInput').value.toLowerCase();
+
+    const rows = document.querySelectorAll('.order-row');
+
+    rows.forEach(row => {
+        const status = row.getAttribute('data-status');
+        const master = row.getAttribute('data-master');
+        const date = row.getAttribute('data-date');
+        const client = row.getAttribute('data-client');
+        const model = row.getAttribute('data-model');
+        const description = row.getAttribute('data-description');
+
+        const matchesStatus = statusFilter === 'all' || status === statusFilter;
+        const matchesMaster = masterFilter === 'all' || master === masterFilter;
+        const matchesDate = (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo);
+        const matchesSearch = !searchText ||
+                            client.includes(searchText) ||
+                            model.includes(searchText) ||
+                            description.includes(searchText);
+
+        row.style.display = (matchesStatus && matchesMaster && matchesDate && matchesSearch) ? '' : 'none';
+    });
+}
+
+function resetFilters() {
+    document.getElementById('statusFilter').value = 'all';
+    document.getElementById('masterFilter').value = 'all';
+    document.getElementById('dateFromFilter').value = '';
+    document.getElementById('dateToFilter').value = '';
+    document.getElementById('searchInput').value = '';
+    filterOrders();
+}
+
+function exportOrders() {
+    alert('Функция экспорта заказов будет реализована в следующей версии');
+}
+
+function changeStatus(orderId) {
+    alert('Функция изменения статуса будет реализована в следующей версии');
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    // Устанавливаем текущую дату в фильтры
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    document.getElementById('dateFromFilter').value = firstDay.toISOString().split('T')[0];
+    document.getElementById('dateToFilter').value = today.toISOString().split('T')[0];
+});
+</script>
+{% endblock %}

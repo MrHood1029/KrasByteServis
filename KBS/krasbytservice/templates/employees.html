@@ -1,0 +1,546 @@
+{% extends "base.html" %}
+
+{% block title %}Управление сотрудниками{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Управление сотрудниками</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addEmployeeModal">
+            <i class="bi bi-person-plus"></i> Добавить сотрудника
+        </button>
+    </div>
+</div>
+
+<!-- Поиск и фильтры -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="input-group">
+            <input type="text" class="form-control" id="searchInput" placeholder="Поиск по имени, должности или телефону...">
+            <button class="btn btn-outline-secondary" type="button" onclick="clearSearch()">
+                <i class="bi bi-x-circle"></i>
+            </button>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="positionFilter" onchange="filterEmployees()">
+            <option value="all">Все должности</option>
+            <option value="мастер">Мастер</option>
+            <option value="менеджер">Менеджер</option>
+            <option value="администратор">Администратор</option>
+            <option value="директор">Директор</option>
+        </select>
+    </div>
+    <div class="col-md-3">
+        <div class="btn-group w-100">
+            <button type="button" class="btn btn-outline-primary" onclick="exportEmployees()">
+                <i class="bi bi-download"></i> Экспорт
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="showStatistics()">
+                <i class="bi bi-graph-up"></i> Статистика
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Статистика сотрудников -->
+<div class="row mb-4" id="employeeStats" style="display: none;">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body text-center py-2">
+                <h6 class="card-title mb-1">Всего сотрудников</h6>
+                <h4 class="mb-0">{{ employees|length }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body text-center py-2">
+                <h6 class="card-title mb-1">Мастеров</h6>
+                <h4 class="mb-0" id="mastersCount">{{ employees|selectattr('position', 'equalto', 'мастер')|list|length }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body text-center py-2">
+                <h6 class="card-title mb-1">Менеджеров</h6>
+                <h4 class="mb-0" id="managersCount">{{ employees|selectattr('position', 'equalto', 'менеджер')|list|length }}</h4>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body text-center py-2">
+                <h6 class="card-title mb-1">Средняя зарплата</h6>
+                <h4 class="mb-0" id="avgSalary">{{ "%.2f"|format(calculate_avg_salary()) }} ₽</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Таблица сотрудников -->
+<div class="table-responsive">
+    <table class="table table-striped table-hover" id="employeesTable">
+        <thead class="table-dark">
+            <tr>
+                <th>#</th>
+                <th>Сотрудник</th>
+                <th>Должность</th>
+                <th>Контактная информация</th>
+                <th>Зарплата</th>
+                <th>Дата приема</th>
+                <th>Статус</th>
+                <th>Заказов</th>
+                <th>Действия</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for employee in employees %}
+            <tr class="employee-row"
+                data-name="{{ employee.name.lower() }}"
+                data-position="{{ employee.position.lower() if employee.position else '' }}"
+                data-phone="{{ employee.phone if employee.phone else '' }}"
+                data-email="{{ employee.email.lower() if employee.email else '' }}"
+                data-status="{{ 'active' if employee.is_active else 'inactive' }}">
+                <td>{{ employee.id }}</td>
+                <td>
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="avatar-sm bg-light rounded-circle d-flex align-items-center justify-content-center">
+                                <span class="avatar-title text-primary fw-bold">
+                                    {{ employee.name[0]|upper }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <strong>{{ employee.name }}</strong>
+                            {% if not employee.is_active %}
+                            <br>
+                            <small class="text-danger">Не активен</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <span class="badge bg-{{ get_position_badge_class(employee.position) }}">
+                        {{ employee.position or 'Не указана' }}
+                    </span>
+                </td>
+                <td>
+                    <div>
+                        {% if employee.phone %}
+                        <div>
+                            <i class="bi bi-telephone text-primary"></i>
+                            <a href="tel:{{ employee.phone }}" class="text-decoration-none">{{ employee.phone }}</a>
+                        </div>
+                        {% endif %}
+                        {% if employee.email %}
+                        <div>
+                            <i class="bi bi-envelope text-primary"></i>
+                            <a href="mailto:{{ employee.email }}" class="text-decoration-none">{{ employee.email }}</a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </td>
+                <td>
+                    {% if employee.salary %}
+                    <strong>{{ "%.2f"|format(employee.salary) }} ₽</strong>
+                    {% else %}
+                    <span class="text-muted">Не указана</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if employee.hire_date %}
+                    {{ employee.hire_date.strftime('%d.%m.%Y') }}
+                    {% else %}
+                    <span class="text-muted">Не указана</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="badge bg-{% if employee.is_active %}success{% else %}secondary{% endif %}">
+                        {% if employee.is_active %}Активен{% else %}Не активен{% endif %}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge bg-{{ get_orders_count_class(employee.orders|length) }}">
+                        {{ employee.orders|length }}
+                    </span>
+                </td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary"
+                                data-bs-toggle="modal"
+                                data-bs-target="#viewEmployeeModal"
+                                onclick="viewEmployee({{ employee.id }})"
+                                title="Просмотр">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-outline-warning"
+                                data-bs-toggle="modal"
+                                data-bs-target="#editEmployeeModal"
+                                onclick="fillEditForm({{ employee.id }}, '{{ employee.name }}', '{{ employee.position }}', '{{ employee.phone }}', '{{ employee.email }}', '{{ employee.salary }}', '{{ employee.hire_date.strftime('%Y-%m-%d') if employee.hire_date else '' }}', {{ employee.is_active|lower }})"
+                                title="Редактировать">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-outline-danger"
+                                onclick="confirmDelete({{ employee.id }}, '{{ employee.name }}')"
+                                title="Удалить">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Пагинация -->
+{% if employees|length > 10 %}
+<nav aria-label="Page navigation">
+    <ul class="pagination justify-content-center">
+        <li class="page-item disabled">
+            <a class="page-link" href="#">Предыдущая</a>
+        </li>
+        <li class="page-item active"><a class="page-link" href="#">1</a></li>
+        <li class="page-item"><a class="page-link" href="#">2</a></li>
+        <li class="page-item"><a class="page-link" href="#">3</a></li>
+        <li class="page-item">
+            <a class="page-link" href="#">Следующая</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
+
+<!-- Модальное окно добавления сотрудника -->
+<div class="modal fade" id="addEmployeeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Добавить сотрудника</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_employee') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">ФИО *</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Должность *</label>
+                        <select class="form-select" name="position" required>
+                            <option value="">Выберите должность</option>
+                            <option value="мастер">Мастер</option>
+                            <option value="менеджер">Менеджер</option>
+                            <option value="администратор">Администратор</option>
+                            <option value="директор">Директор</option>
+                            <option value="другое">Другое</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Телефон</label>
+                            <input type="tel" class="form-control" name="phone">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" name="email">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Зарплата (₽)</label>
+                            <input type="number" step="0.01" class="form-control" name="salary">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Дата приема</label>
+                            <input type="date" class="form-control" name="hire_date">
+                        </div>
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="isActive" checked>
+                        <label class="form-check-label" for="isActive">Активный сотрудник</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Добавить</button>
+                </div>
+</form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно редактирования сотрудника -->
+<div class="modal fade" id="editEmployeeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Редактировать сотрудника</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('edit_employee') }}">
+                <input type="hidden" name="employee_id" id="editEmployeeId">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">ФИО *</label>
+                        <input type="text" class="form-control" name="name" id="editName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Должность *</label>
+                        <select class="form-select" name="position" id="editPosition" required>
+                            <option value="мастер">Мастер</option>
+                            <option value="менеджер">Менеджер</option>
+                            <option value="администратор">Администратор</option>
+                            <option value="директор">Директор</option>
+                            <option value="другое">Другое</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Телефон</label>
+                            <input type="tel" class="form-control" name="phone" id="editPhone">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" name="email" id="editEmail">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Зарплата (₽)</label>
+                            <input type="number" step="0.01" class="form-control" name="salary" id="editSalary">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Дата приема</label>
+                            <input type="date" class="form-control" name="hire_date" id="editHireDate">
+                        </div>
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="editIsActive">
+                        <label class="form-check-label" for="editIsActive">Активный сотрудник</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно просмотра сотрудника -->
+<div class="modal fade" id="viewEmployeeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Информация о сотруднике</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="employeeDetails">
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Загрузка...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Подключение Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+
+<style>
+.employee-row:hover {
+    background-color: #f8f9fa;
+    cursor: pointer;
+}
+.table th {
+    background-color: #0d6efd;
+    color: white;
+}
+.avatar-sm {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.avatar-title {
+    font-size: 1.1rem;
+}
+</style>
+
+<script>
+// Заполнение формы редактирования
+function fillEditForm(id, name, position, phone, email, salary, hireDate, isActive) {
+    document.getElementById('editEmployeeId').value = id;
+    document.getElementById('editName').value = name;
+    document.getElementById('editPosition').value = position;
+    document.getElementById('editPhone').value = phone || '';
+    document.getElementById('editEmail').value = email || '';
+    document.getElementById('editSalary').value = salary || '';
+    document.getElementById('editHireDate').value = hireDate || '';
+    document.getElementById('editIsActive').checked = isActive === 'true';
+}
+
+// Подтверждение удаления
+function confirmDelete(employeeId, employeeName) {
+    if (confirm(`Вы уверены, что хотите удалить сотрудника "${employeeName}"?`)) {
+        fetch(`/delete_employee/${employeeId}`, {
+            method: 'DELETE',
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Ошибка при удалении сотрудника: ' + data.error);
+            }
+        });
+    }
+}
+
+// Просмотр информации о сотруднике
+function viewEmployee(employeeId) {
+    fetch(`/api/employee_details/${employeeId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('employeeDetails').innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Основная информация</h6>
+                            <p><strong>ФИО:</strong> ${data.employee.name}</p>
+                            <p><strong>Должность:</strong> <span class="badge bg-${data.employee.position_class}">${data.employee.position}</span></p>
+                            <p><strong>Статус:</strong> <span class="badge bg-${data.employee.is_active ? 'success' : 'secondary'}">${data.employee.is_active ? 'Активен' : 'Не активен'}</span></p>
+                            <p><strong>Дата приема:</strong> ${data.employee.hire_date || 'Не указана'}</p>
+                            <p><strong>Зарплата:</strong> ${data.employee.salary ? data.employee.salary + ' ₽' : 'Не указана'}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Контактная информация</h6>
+                            <p><strong>Телефон:</strong> ${data.employee.phone || 'Не указан'}</p>
+                            <p><strong>Email:</strong> ${data.employee.email || 'Не указан'}</p>
+                        </div>
+                    </div>
+
+                    <hr>
+                    <h6>Статистика работы</h6>
+                    <div class="row">
+                        <div class="col-md-4 text-center">
+                            <div class="card bg-light">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title">Всего заказов</h6>
+                                    <h4 class="text-primary">${data.employee.total_orders}</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <div class="card bg-light">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title">В работе</h6>
+                                    <h4 class="text-warning">${data.employee.active_orders}</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-center">
+                            <div class="card bg-light">
+                                <div class="card-body py-2">
+                                    <h6 class="card-title">Завершено</h6>
+                                    <h4 class="text-success">${data.employee.completed_orders}</h4>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${data.employee.total_orders > 0 ? `
+                    <div class="text-center mt-3">
+                        <button class="btn btn-outline-primary btn-sm" onclick="viewEmployeeOrders(${data.employee.id})">
+                            <i class="bi bi-list-check"></i> Показать все заказы
+                        </button>
+                    </div>
+                    ` : ''}
+                `;
+            } else {
+                document.getElementById('employeeDetails').innerHTML = `
+                    <div class="alert alert-danger">Ошибка загрузки данных сотрудника</div>
+                `;
+            }
+        });
+}
+
+function viewEmployeeOrders(employeeId) {
+    alert('Просмотр заказов сотрудника будет реализован в следующей версии');
+}
+
+// Поиск сотрудников
+document.getElementById('searchInput').addEventListener('input', function() {
+    const searchText = this.value.toLowerCase();
+    const rows = document.querySelectorAll('.employee-row');
+
+    rows.forEach(row => {
+        const name = row.getAttribute('data-name');
+        const position = row.getAttribute('data-position');
+        const phone = row.getAttribute('data-phone');
+        const email = row.getAttribute('data-email');
+
+        const matches = name.includes(searchText) ||
+                       position.includes(searchText) ||
+                       phone.includes(searchText) ||
+                       email.includes(searchText);
+
+        row.style.display = matches ? '' : 'none';
+    });
+});
+
+function clearSearch() {
+    document.getElementById('searchInput').value = '';
+    const rows = document.querySelectorAll('.employee-row');
+    rows.forEach(row => row.style.display = '');
+}
+
+// Фильтрация по должности
+function filterEmployees() {
+    const positionFilter = document.getElementById('positionFilter').value;
+    const searchText = document.getElementById('searchInput').value.toLowerCase();
+
+    const rows = document.querySelectorAll('.employee-row');
+
+    rows.forEach(row => {
+        const position = row.getAttribute('data-position');
+        const name = row.getAttribute('data-name');
+        const phone = row.getAttribute('data-phone');
+        const email = row.getAttribute('data-email');
+
+        const matchesPosition = positionFilter === 'all' || position.includes(positionFilter);
+        const matchesSearch = !searchText ||
+                            name.includes(searchText) ||
+                            position.includes(searchText) ||
+                            phone.includes(searchText) ||
+                            email.includes(searchText);
+
+        row.style.display = (matchesPosition && matchesSearch) ? '' : 'none';
+    });
+}
+
+function exportEmployees() {
+    alert('Функция экспорта сотрудников будет реализована в следующей версии');
+}
+
+function showStatistics() {
+    const statsSection = document.getElementById('employeeStats');
+    statsSection.style.display = statsSection.style.display === 'none' ? 'flex' : 'none';
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    // Автоматически показываем статистику если сотрудников много
+    if ({{ employees|length }} > 3) {
+        showStatistics();
+    }
+});
+</script>
+{% endblock %}

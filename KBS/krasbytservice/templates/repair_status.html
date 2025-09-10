@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Статус ремонта{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Проверить статус ремонта</h3>
+            </div>
+            <div class="card-body">
+                <form id="statusForm">
+                    <div class="mb-3">
+                        <label for="order_id" class="form-label">Номер заказа</label>
+                        <input type="text" class="form-control" id="order_id" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="phone" class="form-label">Телефон</label>
+                        <input type="tel" class="form-control" id="phone" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Проверить статус</button>
+                </form>
+
+                <div id="statusResult" class="mt-4" style="display: none;">
+                    <div class="alert alert-info">
+                        <h5>Статус заказа: <span id="statusText"></span></h5>
+                        <p>Модель: <span id="modelText"></span></p>
+                        <p>Описание: <span id="descText"></span></p>
+                    </div>
+                </div>
+
+                <div id="errorResult" class="alert alert-danger mt-4" style="display: none;">
+                    Заказ не найден. Проверьте правильность введенных данных.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('statusForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const formData = new FormData();
+    formData.append('order_id', document.getElementById('order_id').value);
+    formData.append('phone', document.getElementById('phone').value);
+
+    fetch('/api/check_status', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            document.getElementById('statusResult').style.display = 'none';
+            document.getElementById('errorResult').style.display = 'block';
+        } else {
+            document.getElementById('statusText').textContent = data.status;
+            document.getElementById('modelText').textContent = data.model;
+            document.getElementById('descText').textContent = data.description;
+            document.getElementById('statusResult').style.display = 'block';
+            document.getElementById('errorResult').style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}

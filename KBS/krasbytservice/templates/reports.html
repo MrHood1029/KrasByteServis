@@ -1,0 +1,438 @@
+{% extends "base.html" %}
+
+{% block title %}Отчеты и аналитика{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Отчеты и аналитика</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="printReport()">
+                <i class="bi bi-printer"></i> Печать
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="exportToExcel()">
+                <i class="bi bi-file-earmark-excel"></i> Excel
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Фильтры отчетов -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="card-title">Параметры отчета</h5>
+    </div>
+    <div class="card-body">
+        <form id="reportFilterForm">
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Тип отчета</label>
+                    <select class="form-select" id="reportType" onchange="toggleReportParams()">
+                        <option value="financial">Финансовый отчет</option>
+                        <option value="sales">Отчет по продажам</option>
+                        <option value="repairs">Отчет по ремонтам</option>
+                        <option value="warehouse">Отчет по складу</option>
+                        <option value="clients">Отчет по клиентам</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Период с</label>
+                    <input type="date" class="form-control" id="dateFrom" value="{{ default_date_from }}">
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Период по</label>
+                    <input type="date" class="form-control" id="dateTo" value="{{ default_date_to }}">
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">&nbsp;</label>
+                    <button type="button" class="btn btn-primary w-100" onclick="generateReport()">
+                        <i class="bi bi-gear"></i> Сформировать
+                    </button>
+                </div>
+            </div>
+
+            <!-- Дополнительные параметры для разных отчетов -->
+            <div id="additionalParams" style="display: none;">
+                <div class="row">
+                    <div class="col-md-4 mb-3" id="paramStatus" style="display: none;">
+                        <label class="form-label">Статус заказа</label>
+                        <select class="form-select" id="orderStatus">
+                            <option value="all">Все статусы</option>
+                            <option value="1">Новые</option>
+                            <option value="2">В обработке</option>
+                            <option value="3">В ремонте</option>
+                            <option value="4">Выполненные</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3" id="paramEmployee" style="display: none;">
+                        <label class="form-label">Мастер</label>
+                        <select class="form-select" id="employee">
+                            <option value="all">Все мастера</option>
+                            {% for employee in employees %}
+                            <option value="{{ employee.id }}">{{ employee.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3" id="paramStockLevel" style="display: none;">
+                        <label class="form-label">Уровень запаса</label>
+                        <select class="form-select" id="stockLevel">
+                            <option value="all">Все</option>
+                            <option value="low">Низкий запас</option>
+                            <option value="out">Нет в наличии</option>
+                            <option value="normal">Нормальный запас</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Статистика и сводка -->
+<div class="row mb-4" id="summaryStats">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body text-center">
+                <h6 class="card-title">Общая выручка</h6>
+                <h3 id="totalRevenue">0 ₽</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body text-center">
+                <h6 class="card-title">Прибыль</h6>
+                <h3 id="totalProfit">0 ₽</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body text-center">
+                <h6 class="card-title">Заказов</h6>
+                <h3 id="totalOrders">0</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body text-center">
+                <h6 class="card-title">Средний чек</h6>
+                <h3 id="avgOrder">0 ₽</h3>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Результаты отчета -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title" id="reportTitle">Финансовый отчет</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped" id="reportTable">
+                <thead>
+                    <tr id="financialHeader">
+                        <th>Показатель</th>
+                        <th>Количество</th>
+                        <th>Сумма (₽)</th>
+                        <th>Доля (%)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="4" class="text-center">Выберите параметры и нажмите "Сформировать"</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Графики -->
+        <div class="row mt-4" id="chartsSection" style="display: none;">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title">Распределение по категориям</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="categoryChart" width="400" height="250"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title">Динамика по месяцам</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="monthlyChart" width="400" height="250"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Подключение Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid #dee2e6;
+}
+.table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+#summaryStats .card {
+    transition: transform 0.2s;
+}
+#summaryStats .card:hover {
+    transform: translateY(-2px);
+}
+</style>
+
+<script>
+// Переменные для хранения данных и графиков
+let categoryChart = null;
+let monthlyChart = null;
+
+// Функция переключения дополнительных параметров
+function toggleReportParams() {
+    const reportType = document.getElementById('reportType').value;
+    const additionalParams = document.getElementById('additionalParams');
+    const paramStatus = document.getElementById('paramStatus');
+    const paramEmployee = document.getElementById('paramEmployee');
+    const paramStockLevel = document.getElementById('paramStockLevel');
+
+    // Скрываем все параметры
+    paramStatus.style.display = 'none';
+    paramEmployee.style.display = 'none';
+    paramStockLevel.style.display = 'none';
+    additionalParams.style.display = 'none';
+
+    // Показываем нужные параметры
+    switch(reportType) {
+        case 'sales':
+        case 'repairs':
+            paramStatus.style.display = 'block';
+            paramEmployee.style.display = 'block';
+            additionalParams.style.display = 'block';
+            break;
+        case 'warehouse':
+            paramStockLevel.style.display = 'block';
+            additionalParams.style.display = 'block';
+            break;
+        case 'clients':
+            additionalParams.style.display = 'block';
+            break;
+    }
+}
+
+// Функция генерации отчета
+function generateReport() {
+    const reportType = document.getElementById('reportType').value;
+    const dateFrom = document.getElementById('dateFrom').value;
+    const dateTo = document.getElementById('dateTo').value;
+
+    // Показываем загрузку
+    document.getElementById('reportTable').innerHTML = `
+        <tr>
+            <td colspan="4" class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Загрузка...</span>
+                </div>
+                <p class="mt-2">Формирование отчета...</p>
+            </td>
+        </tr>
+    `;
+
+    // Имитация запроса к серверу
+    setTimeout(() => {
+        // Заголовок отчета
+        document.getElementById('reportTitle').textContent = getReportTitle(reportType);
+
+        // Заполняем таблицу тестовыми данными
+        fillReportTable(reportType);
+
+        // Обновляем статистику
+        updateSummaryStats();
+
+        // Показываем графики
+        showCharts();
+
+    }, 1000);
+}
+
+function getReportTitle(type) {
+    const titles = {
+        'financial': 'Финансовый отчет',
+        'sales': 'Отчет по продажам',
+        'repairs': 'Отчет по ремонтам',
+        'warehouse': 'Отчет по складу',
+        'clients': 'Отчет по клиентам'
+    };
+    return titles[type] || 'Отчет';
+}
+
+function fillReportTable(reportType) {
+    let tableContent = '';
+
+    switch(reportType) {
+        case 'financial':
+            tableContent = `
+                <thead>
+                    <tr>
+                        <th>Категория</th>
+                        <th>Количество</th>
+                        <th>Сумма (₽)</th>
+                        <th>Доля (%)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Продажи техники</td>
+                        <td>15</td>
+                        <td>187,500 ₽</td>
+                        <td>65%</td>
+                    </tr>
+                    <tr>
+                        <td>Ремонтные услуги</td>
+                        <td>42</td>
+                        <td>84,000 ₽</td>
+                        <td>29%</td>
+                    </tr>
+                    <tr>
+                        <td>Запчасти</td>
+                        <td>87</td>
+                        <td>17,400 ₽</td>
+                        <td>6%</td>
+                    </tr>
+                    <tr class="table-primary fw-bold">
+                        <td>Итого</td>
+                        <td>144</td>
+                        <td>288,900 ₽</td>
+                        <td>100%</td>
+                    </tr>
+                </tbody>
+            `;
+            break;
+
+        case 'sales':
+            tableContent = `
+                <thead>
+                    <tr>
+                        <th>Модель</th>
+                        <th>Кол-во</th>
+                        <th>Выручка</th>
+                        <th>Прибыль</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Samsung WW60J42E0HW</td><td>3</td><td>45,000 ₽</td><td>15,000 ₽</td></tr>
+                    <tr><td>LG F2J3HS0W</td><td>4</td><td>52,000 ₽</td><td>18,200 ₽</td></tr>
+                    <tr><td>Indesit BTW A61052</td><td>5</td><td>55,000 ₽</td><td>16,500 ₽</td></tr>
+                    <tr><td>Bosch WAN20060OE</td><td>3</td><td>35,500 ₽</td><td>12,425 ₽</td></tr>
+                </tbody>
+            `;
+            break;
+
+        // Добавьте другие типы отчетов по аналогии
+        default:
+            tableContent = `
+                <tbody>
+                    <tr>
+                        <td colspan="4" class="text-center">Данные для выбранного отчета</td>
+                    </tr>
+                </tbody>
+            `;
+    }
+
+    document.getElementById('reportTable').innerHTML = tableContent;
+}
+
+function updateSummaryStats() {
+    document.getElementById('totalRevenue').textContent = '288,900 ₽';
+    document.getElementById('totalProfit').textContent = '86,670 ₽';
+    document.getElementById('totalOrders').textContent = '144';
+    document.getElementById('avgOrder').textContent = '2,006 ₽';
+}
+
+function showCharts() {
+    const chartsSection = document.getElementById('chartsSection');
+    chartsSection.style.display = 'flex';
+
+    // Уничтожаем старые графики если они есть
+    if (categoryChart) categoryChart.destroy();
+    if (monthlyChart) monthlyChart.destroy();
+
+    // Создаем график категорий
+    const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+    categoryChart = new Chart(categoryCtx, {
+        type: 'pie',
+        data: {
+            labels: ['Продажи техники', 'Ремонтные услуги', 'Запчасти'],
+            datasets: [{
+                data: [65, 29, 6],
+                backgroundColor: ['#0d6efd', '#198754', '#ffc107']
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+
+    // Создаем график по месяцам
+    const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
+    monthlyChart = new Chart(monthlyCtx, {
+        type: 'line',
+        data: {
+            labels: ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'],
+            datasets: [{
+                label: 'Выручка (тыс. ₽)',
+                data: [45, 52, 48, 58, 62, 70],
+                borderColor: '#0d6efd',
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+function printReport() {
+    window.print();
+}
+
+function exportToExcel() {
+    alert('Функция экспорта в Excel будет реализована в следующей версии');
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    // Устанавливаем даты по умолчанию (текущий месяц)
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+    document.getElementById('dateFrom').value = firstDay.toISOString().split('T')[0];
+    document.getElementById('dateTo').value = lastDay.toISOString().split('T')[0];
+
+    // Показываем параметры для текущего типа отчета
+    toggleReportParams();
+});
+</script>
+{% endblock %}

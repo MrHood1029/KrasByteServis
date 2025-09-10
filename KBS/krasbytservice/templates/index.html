@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Главная страница{% endblock %}
+
+{% block content %}
+<div class="hero-section bg-light py-5 mb-5">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6">
+                <h1 class="display-4 fw-bold text-primary">КрасБытСервис</h1>
+                <p class="lead">Профессиональный ремонт, скупка и продажа стиральных машин в Красноярске</p>
+                <div class="d-grid gap-2 d-md-flex">
+                    <a href="{{ url_for('buy_request') }}" class="btn btn-primary btn-lg">Сдать стиральную машину</a>
+                    <a href="{{ url_for('repair_status') }}" class="btn btn-outline-primary btn-lg">Проверить статус ремонта</a>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <img src="https://via.placeholder.com/600x400" class="img-fluid rounded" alt="Стиральные машины">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="services-section py-5">
+    <div class="container">
+        <h2 class="text-center mb-5">Наши услуги</h2>
+        <div class="row">
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Ремонт стиральных машин</h5>
+                        <p class="card-text">Качественный ремонт любой сложности с гарантией</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Скупка б/у техники</h5>
+                        <p class="card-text">Выкупим вашу старую стиральную машину по выгодной цене</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Продажа восстановленной техники</h5>
+                        <p class="card-text">Проверенные и отремонтированные стиральные машины с гарантией</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="advantages-section bg-light py-5">
+    <div class="container">
+        <h2 class="text-center mb-5">Почему выбирают нас</h2>
+        <div class="row">
+            <div class="col-md-3 text-center mb-4">
+                <div class="fs-1 text-primary mb-3">⚡</div>
+                <h5>Быстрый выезд</h5>
+                <p>Выезд мастера в день обращения</p>
+            </div>
+            <div class="col-md-3 text-center mb-4">
+                <div class="fs-1 text-primary mb-3">🔧</div>
+                <h5>Опытные мастера</h5>
+                <p>Специалисты с опытом работы от 5 лет</p>
+            </div>
+            <div class="col-md-3 text-center mb-4">
+                <div class="fs-1 text-primary mb-3">💯</div>
+                <h5>Гарантия качества</h5>
+                <p>Гарантия на все виды работ до 1 года</p>
+            </div>
+            <div class="col-md-3 text-center mb-4">
+                <div class="fs-1 text-primary mb-3">💰</div>
+                <h5>Выгодные цены</h5>
+                <p>Честные цены без скрытых доплат</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
